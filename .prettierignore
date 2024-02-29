@@ -1,0 +1,8 @@
+node_modules
+package-lock.json
+.idea
+.mysql-data
+dist
+yarn.lock
+.docker
+storage

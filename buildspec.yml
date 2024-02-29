@@ -1,0 +1,38 @@
+version: 0.2
+phases:
+  pre_build:
+    commands:
+    - echo Logging in to Amazon ECR...
+    - aws --version
+    - aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin 718056608735.dkr.ecr.ap-northeast-1.amazonaws.com
+    - export COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-8)
+    - export IMAGE_TAG=${COMMIT_HASH}
+    - export REPOSITORY_URI="718056608735.dkr.ecr.ap-northeast-1.amazonaws.com/prod-sleefi-api-pretest"
+    - export ENV_FOR=${ENV_FOR}
+    - export ENV_SSM_KEY=${ENV_SSM_KEY}
+  build:
+    commands:
+    - echo Build started on `date` at commitID ${COMMIT_HASH}
+    - echo Building the Docker image...
+    - echo Adding ENV, config ...
+    - aws ssm get-parameter --with-decryption --name ${ENV_SSM_KEY} --region ap-northeast-1 | jq '.Parameter.Value'| sed 's/^"\(.*\)/\1/' |sed 's/.$//' | sed 's/\\n/\n/g' > .env
+    - cat .env
+    - docker build -t $REPOSITORY_URI:latest .
+    - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+    - echo Build completed on `date`
+    - echo pushing to repo
+    - docker push $REPOSITORY_URI:latest
+    - docker push $REPOSITORY_URI:$IMAGE_TAG
+    - echo Writing image definitions file with IMAGE_TAG ${IMAGE_TAG}
+    - printf '[{"name":"api-pretest","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > sleefi_api-pretest.json
+    - printf '[{"name":"crawler-pretest","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > sleefi_crawler-pretest.json
+    - printf '[{"name":"handlewithdraw-pretest","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > sleefi_handlewithdraw-pretest.json
+
+artifacts:
+    files: 
+    - sleefi_api-pretest.json
+    - sleefi_crawler-pretest.json
+    - sleefi_handlewithdraw-pretest.json
+    
